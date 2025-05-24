@@ -1,8 +1,12 @@
 import { useEffect, useState } from "react";
 import Web3 from "web3";
-import EventTicketABI from "./abi/EventTicket.json";
+import EventTicketABI from "./abi/MovieTicket.json";
 
 const contractAddress = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
+
+const movies = ["Inception", "Interstellar", "The Dark Knight", "The Matrix", "Parasite"];
+const times = ["10:00", "14:00", "20:00"];
+const seats = Array.from({ length: 10 }, (_, i) => `A${i + 1}`);
 
 function App() {
   const [web3, setWeb3] = useState(null);
@@ -14,13 +18,17 @@ function App() {
   const [ticketsSold, setTicketsSold] = useState(0);
   const [status, setStatus] = useState("");
 
+  const [movie, setMovie] = useState(movies[0]);
+  const [time, setTime] = useState(times[0]);
+  const [seat, setSeat] = useState(seats[0]);
+
   const [transferTicketId, setTransferTicketId] = useState("");
-  const [transferToAddress, setTransferToAddress] = useState(""); 
+  const [transferToAddress, setTransferToAddress] = useState("");
   const [verifyAddress, setVerifyAddress] = useState("");
   const [verifyResult, setVerifyResult] = useState("");
 
-  const [myTicketId, setMyTicketId] = useState("");
   const [removeStatus, setRemoveStatus] = useState("");
+  const [myTicketInfo, setMyTicketInfo] = useState("");
 
   useEffect(() => {
     async function init() {
@@ -58,75 +66,81 @@ function App() {
     try {
       setStatus("Processing purchase...");
       const priceWei = await contract.methods.ticketPrice().call();
-      await contract.methods.buyTicket().send({ from: account, value: priceWei });
-      setStatus("Ticket purchased successfully!");
 
+      await contract.methods.buyTicket(movie, time, seat).send({
+        from: account,
+        value: priceWei
+      });
+
+      setStatus(`🎟️ Ticket purchased for ${movie} at ${time} (Seat ${seat})`);
       const sold = await contract.methods.ticketsSold().call();
       setTicketsSold(sold);
     } catch (error) {
       console.error(error);
-      setStatus("Error purchasing ticket");
+      setStatus("❌ Error purchasing ticket");
     }
   }
 
   async function transferTicket() {
     try {
-      setStatus("Processing transfer...");
+      setStatus("Transferring ticket...");
       await contract.methods
         .transferTicket(transferTicketId, transferToAddress)
         .send({ from: account });
-      setStatus("Ticket transferred successfully!");
+      setStatus("✅ Ticket transferred!");
     } catch (error) {
       console.error(error);
-      setStatus("Error transferring ticket");
+      setStatus("❌ Transfer failed");
     }
   }
 
   async function verifyOwnership() {
     try {
-      const owns = await contract.methods.verifyOwnership(verifyAddress).call();
-      setVerifyResult(
-        owns ? `${verifyAddress} owns a ticket` : `${verifyAddress} does NOT own a ticket`
-      );
-    } catch (error) {
-      console.error(error);
-      setVerifyResult("Error verifying ownership");
-    }
-  }
-
-  async function checkMyTicketId() {
-    try {
-      const ticketId = await contract.methods.getMyTicketId().call({ from: account });
-      if (ticketId === "-1") {
-        setMyTicketId("You don't own a ticket.");
+      const result = await contract.methods.verifyOwnership(verifyAddress).call();
+      if (result[0]) {
+        setVerifyResult(
+          `✅ Address owns a ticket — ID: ${result[1]}, Movie: ${result[2]}, Time: ${result[3]}, Seat: ${result[4]}`
+        );
       } else {
-        setMyTicketId(`Your ticket ID is: ${ticketId}`);
+        setVerifyResult("❌ Address does NOT own a ticket.");
       }
     } catch (error) {
       console.error(error);
-      setMyTicketId("Error checking ticket ID");
+      setVerifyResult("❌ Error verifying ownership");
     }
   }
 
-  // 🆕 Fungsi untuk remove ticket
+  async function getMyTicketInfo() {
+    try {
+      const ticket = await contract.methods.getMyTicket().call({ from: account });
+      if (!ticket[0]) {
+        setMyTicketInfo("❌ You don't own a ticket.");
+      } else {
+        setMyTicketInfo(`🎟️ Ticket ID: ${ticket[1]}, Movie: ${ticket[2]}, Time: ${ticket[3]}, Seat: ${ticket[4]}`);
+      }
+    } catch (error) {
+      console.error(error);
+      setMyTicketInfo("❌ Error fetching ticket info.");
+    }
+  }
+
   async function removeTicket() {
     try {
-      setRemoveStatus("Removing your ticket...");
-      await contract.methods.removeMyTicket().send({ from: account });
-      setRemoveStatus("Your ticket has been removed successfully!");
+      setRemoveStatus("Removing ticket...");
+      await contract.methods.deleteMyTicket().send({ from: account });
+      setRemoveStatus("✅ Ticket removed.");
 
-      // Update info setelah menghapus
       const sold = await contract.methods.ticketsSold().call();
       setTicketsSold(sold);
     } catch (error) {
       console.error(error);
-      setRemoveStatus("Error removing ticket");
+      setRemoveStatus("❌ Error removing ticket.");
     }
   }
 
   return (
-    <div className="p-6 max-w-md mx-auto">
-      <h1 className="text-3xl font-bold mb-6">Event Ticket DApp</h1>
+    <div className="p-6 max-w-xl mx-auto">
+      <h1 className="text-3xl font-bold mb-6">🎬 Movie Ticket DApp</h1>
       {account ? <p>Connected: {account}</p> : <p>Not connected</p>}
 
       <div className="my-4">
@@ -135,9 +149,32 @@ function App() {
         <p>Tickets Sold: {ticketsSold}</p>
       </div>
 
+      <hr className="my-4" />
+      <h2 className="text-xl font-semibold mb-2">Buy Ticket</h2>
+      <label className="block mb-1">Movie:</label>
+      <select value={movie} onChange={(e) => setMovie(e.target.value)} className="border p-2 mb-2 w-full">
+        {movies.map((m) => (
+          <option key={m}>{m}</option>
+        ))}
+      </select>
+
+      <label className="block mb-1">Time:</label>
+      <select value={time} onChange={(e) => setTime(e.target.value)} className="border p-2 mb-2 w-full">
+        {times.map((t) => (
+          <option key={t}>{t}</option>
+        ))}
+      </select>
+
+      <label className="block mb-1">Seat:</label>
+      <select value={seat} onChange={(e) => setSeat(e.target.value)} className="border p-2 mb-4 w-full">
+        {seats.map((s) => (
+          <option key={s}>{s}</option>
+        ))}
+      </select>
+
       <button
         onClick={buyTicket}
-        className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+        className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 w-full"
       >
         Buy Ticket
       </button>
@@ -161,7 +198,7 @@ function App() {
       />
       <button
         onClick={transferTicket}
-        className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+        className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 w-full"
       >
         Transfer Ticket
       </button>
@@ -178,7 +215,7 @@ function App() {
       />
       <button
         onClick={verifyOwnership}
-        className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
+        className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 w-full"
       >
         Verify
       </button>
@@ -186,28 +223,27 @@ function App() {
 
       <hr className="my-6" />
 
-      <h2 className="text-xl font-semibold mb-2">Check My Ticket ID</h2>
+      <h2 className="text-xl font-semibold mb-2">My Ticket Info</h2>
       <button
-        onClick={checkMyTicketId}
-        className="bg-yellow-600 text-white px-4 py-2 rounded hover:bg-yellow-700"
+        onClick={getMyTicketInfo}
+        className="bg-yellow-600 text-white px-4 py-2 rounded hover:bg-yellow-700 w-full"
       >
-        Check Ticket ID
+        Check My Ticket
       </button>
-      {myTicketId && <p className="mt-2">{myTicketId}</p>}
+      {myTicketInfo && <p className="mt-2">{myTicketInfo}</p>}
 
       <hr className="my-6" />
 
-      {/* 🆕 UI remove ticket */}
       <h2 className="text-xl font-semibold mb-2">Remove My Ticket</h2>
       <button
         onClick={removeTicket}
-        className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+        className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 w-full"
       >
-        Remove My Ticket
+        Remove Ticket
       </button>
       {removeStatus && <p className="mt-2 text-red-600">{removeStatus}</p>}
 
-      <p className="mt-6 text-red-600 font-semibold">{status}</p>
+      <p className="mt-6 text-blue-600 font-semibold">{status}</p>
     </div>
   );
 }

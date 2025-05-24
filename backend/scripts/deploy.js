@@ -5,23 +5,20 @@ async function main() {
 
     console.log("Deploying contracts with account:", deployer.address);
 
-    const EventTicket = await ethers.getContractFactory("EventTicket");
+    const MovieTicket = await ethers.getContractFactory("MovieTicket");
 
-    // Constructor args
     const ticketPrice = ethers.parseEther("10");
     const totalTickets = 100;
 
-    const eventTicket = await EventTicket.deploy(ticketPrice, totalTickets);
+    const movieTicket = await MovieTicket.deploy(ticketPrice, totalTickets);
 
-    // Wait for deployment transaction to be mined (optional but recommended)
-    await eventTicket.deploymentTransaction().wait();
+    await movieTicket.deploymentTransaction().wait();
 
     console.log("ticketPrice (wei):", ticketPrice.toString());
     console.log("totalTickets:", totalTickets);
 
-    // Get deployed contract address properly
-    const deployedAddress = await eventTicket.getAddress();
-    console.log("EventTicket deployed to:", deployedAddress);
+    const deployedAddress = await movieTicket.getAddress();
+    console.log("MovieTicket deployed to:", deployedAddress);
 }
 
 main()
